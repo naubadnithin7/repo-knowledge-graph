@@ -1,17 +1,19 @@
 {
   "name": "repo-knowledge-graph",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local repository knowledge graph, context search and pluggable routing",
   "type": "module",
   "bin": {
     "repo-graph": "./bin/repo-graph.js"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./adapters": "./src/adapters.js",
+    "./benchmark": "./src/benchmark.js"
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/index.js && node --check bin/repo-graph.js",
+    "check": "node --check src/index.js && node --check bin/repo-graph.js && node --check src/adapters.js && node --check src/benchmark.js",
     "prepublishOnly": "npm test && npm run check"
   },
   "engines": {
@@ -27,5 +29,13 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/naubadnithin7/repo-knowledge-graph.git"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }
