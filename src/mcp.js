@@ -9,8 +9,10 @@ const definitions=[
 ];
 const result=(value)=>({content:[{type:'text',text:JSON.stringify(value)}]});
 export async function callTool(root,name,args={}){
- if(name==='repo_refresh'){let previous;try{previous=await load(root);}catch{}const g=await scan(root,{previous});await save(g);return result({files:g.files.length,nodes:g.nodes.length,edges:g.edges.length,reusedFiles:g.reusedFiles});}
- let g;try{g=await load(root);}catch{g=await scan(root);await save(g);}
+ if(name==='repo_refresh'){let previous;try{previous=await load(root);}catch{}const g=await scan(root,{previous,parser:previous?.parser||'regex'});await save(g);return result({files:g.files.length,nodes:g.nodes.length,edges:g.edges.length,reusedFiles:g.reusedFiles});}
+ let previous;try{previous=await load(root);}catch{}
+ const g=await scan(root,{previous,parser:previous?.parser||'regex'});
+ if(!previous||g.files.length!==previous.files.length||g.files.some((f,i)=>f.path!==previous.files[i]?.path||f.hash!==previous.files[i]?.hash))await save(g);
  if(name==='repo_stats')return result({files:g.files.length,nodes:g.nodes.length,edges:g.edges.length});
  if(name==='repo_search')return result(await searchFiles(g,requireQuery(args),{limit:integer(args.limit,10,30)}));
  if(name==='repo_context')return result(await context(g,requireQuery(args),{limit:integer(args.limit,5,20),maxTokens:integer(args.maxTokens,4000,16000)}));
