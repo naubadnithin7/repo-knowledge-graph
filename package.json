@@ -1,7 +1,7 @@
 {
   "name": "repo-knowledge-graph",
-  "version": "0.1.0",
-  "description": "Local repository graph and context selection CLI",
+  "version": "0.2.0",
+  "description": "Local repository knowledge graph, context search and pluggable routing",
   "type": "module",
   "bin": {
     "repo-graph": "./bin/repo-graph.js"
@@ -11,7 +11,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/index.js && node --check bin/repo-graph.js"
+    "check": "node --check src/index.js && node --check bin/repo-graph.js",
+    "prepublishOnly": "npm test && npm run check"
   },
   "engines": {
     "node": ">=20"
@@ -22,5 +23,9 @@
     "README.md",
     "LICENSE"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naubadnithin7/repo-knowledge-graph.git"
+  }
 }

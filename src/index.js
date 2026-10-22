@@ -1,50 +1,27 @@
 import {readdir,readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 const skip=new Set(['.git','node_modules','dist','build','.repo-graph','coverage','.venv']);
 const extensions=new Set(['.js','.jsx','.ts','.tsx','.mjs','.cjs','.py','.go','.java','.rs','.md','.json']);
-export const estimateTokens=text=>Math.ceil(String(text).length/4);
-export async function scan(root,{maxBytes=256000}={}){
- root=path.resolve(root);const nodes=[],edges=[],files=[];
- async function walk(dir){
-  for(const item of await readdir(dir,{withFileTypes:true})){
-   if(item.isSymbolicLink()||skip.has(item.name))continue;
-   const full=path.join(dir,item.name);
-   if(item.isDirectory()){await walk(full);continue;}
-   if(!item.isFile()||!extensions.has(path.extname(item.name)))continue;
-   let content;try{content=await readFile(full,'utf8');}catch{continue;}
-   if(Buffer.byteLength(content)>maxBytes||content.includes('\0'))continue;
-   const rel=path.relative(root,full).split(path.sep).join('/'),id='file:'+rel;
-   nodes.push({id,type:'file',name:rel});files.push({path:rel,content});
-   for(const m of content.matchAll(/(?:import\s+(?:[^'"]+?\s+from\s+)?|require\s*\(|from\s+)['"]([^'"]+)['"]/g))
-    edges.push({from:id,to:'module:'+m[1],type:'imports'});
-   for(const m of content.matchAll(/\b(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|def)\s+([A-Za-z_$][\w$]*)/g)){
-    const sid='symbol:'+rel+':'+m[1];nodes.push({id:sid,type:'symbol',name:m[1],file:rel});edges.push({from:id,to:sid,type:'contains'});
-   }
-  }
- }
- await walk(root);
- for(const e of edges.filter(e=>e.to.startsWith('module:')))
-  if(!nodes.some(n=>n.id===e.to))nodes.push({id:e.to,type:'module',name:e.to.slice(7)});
- return {schemaVersion:1,root,generatedAt:new Date().toISOString(),nodes,edges,files};
+const hash=s=>createHash('sha256').update(s).digest('hex');
+export const estimateTokens=s=>Math.ceil(String(s).length/4);
+const norm=p=>p.split(path.sep).join('/');
+async function patterns(root){try{return (await readFile(path.join(root,'.gitignore'),'utf8')).split(/\r?\n/).filter(x=>x&&!x.startsWith('#'));}catch{return [];}}
+function ignored(rel,ps){return ps.some(p=>{p=p.replace(/^\//,'');if(p.endsWith('/'))return rel.startsWith(p)||rel.includes('/'+p);return rel===p||rel.endsWith('/'+p)||(p.startsWith('*.')&&rel.endsWith(p.slice(1)));});}
+export async function scan(root,{maxBytes=256000,previous=null}={}){
+ root=path.resolve(root);const ps=await patterns(root),files=[],nodes=[],edges=[],prior=new Map((previous?.files||[]).map(f=>[f.path,f]));let reusedFiles=0;
+ async function walk(dir){for(const ent of await readdir(dir,{withFileTypes:true})){if(ent.isSymbolicLink()||skip.has(ent.name))continue;const full=path.join(dir,ent.name),rel=norm(path.relative(root,full));if(ignored(rel,ps))continue;if(ent.isDirectory()){await walk(full);continue;}if(!ent.isFile()||!extensions.has(path.extname(ent.name)))continue;let content;try{content=await readFile(full,'utf8');}catch{continue;}if(Buffer.byteLength(content)>maxBytes||content.includes('\0'))continue;const digest=hash(content);if(prior.get(rel)?.hash===digest)reusedFiles++;files.push({path:rel,hash:digest,bytes:Buffer.byteLength(content)});nodes.push({id:'file:'+rel,type:'file',name:rel,hash:digest});
+ for(const m of content.matchAll(/\b(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|def)\s+([A-Za-z_$][\w$]*)/g)){const id='symbol:'+rel+':'+m[1];nodes.push({id,type:'symbol',name:m[1],file:rel});edges.push({from:'file:'+rel,to:id,type:'contains'});}
+ for(const m of content.matchAll(/(?:import\s+(?:[^'"]+?\s+from\s+)?|require\s*\(|from\s+)['"]([^'"]+)['"]/g))edges.push({from:'file:'+rel,to:'module:'+m[1],type:'imports'});
+ }}
+ await walk(root);files.sort((a,b)=>a.path.localeCompare(b.path));const known=new Set(files.map(f=>f.path));for(const edge of edges){if(!edge.to.startsWith('module:.'))continue;const spec=edge.to.slice(7),from=edge.from.slice(5),base=norm(path.posix.normalize(path.posix.join(path.posix.dirname(from),spec)));const match=[base,base+'.js',base+'.ts',base+'.tsx',base+'.jsx',base+'/index.js',base+'/index.ts'].find(p=>known.has(p));if(match)edge.to='file:'+match;}
+ for(const e of edges.filter(e=>e.to.startsWith('module:')))if(!nodes.some(n=>n.id===e.to))nodes.push({id:e.to,type:'module',name:e.to.slice(7)});
+ return {schemaVersion:2,root,generatedAt:new Date().toISOString(),nodes,edges,files,reusedFiles};
 }
-export function search(graph,query,{limit=10}={}){
- const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);if(!terms.length)return [];
- return graph.files.map(f=>{const name=f.path.toLowerCase(),body=f.content.toLowerCase();
- const score=terms.reduce((n,t)=>n+(name.includes(t)?5:0)+(body.includes(t)?1:0),0);
- return {path:f.path,score,content:f.content};}).filter(f=>f.score>0).sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,limit);
-}
-export function context(graph,query,{limit=5,maxTokens=4000}={}){
- let used=0;const selected=[];
- for(const f of search(graph,query,{limit:graph.files.length})){
-  if(selected.length>=limit)break;const cost=estimateTokens(f.content);
-  if(used+cost>maxTokens)continue;
-  selected.push({path:f.path,content:f.content,estimatedTokens:cost});used+=cost;
- }
- const baseline=graph.files.reduce((n,f)=>n+estimateTokens(f.content),0);
- return {query,selected,estimatedContextTokens:used,estimatedBaselineTokens:baseline,estimatedTokensSaved:Math.max(0,baseline-used),estimatedSavingsPercent:baseline?Math.round((baseline-used)/baseline*100):0,method:'characters/4 heuristic, not billed tokens'};
-}
-export async function save(graph,root=graph.root){
- const dir=path.join(root,'.repo-graph');await mkdir(dir,{recursive:true});
- const target=path.join(dir,'graph.json');await writeFile(target,JSON.stringify(graph,null,2));return target;
-}
-export async function load(root){return JSON.parse(await readFile(path.join(path.resolve(root),'.repo-graph','graph.json'),'utf8'));}
+export async function readContextFile(graph,rel){const file=path.resolve(graph.root,rel);if(!file.startsWith(path.resolve(graph.root)+path.sep))throw Error('Unsafe path');if(!graph.files.some(f=>f.path===rel))throw Error('File not indexed');return readFile(file,'utf8');}
+export async function searchFiles(graph,query,{limit=10}={}){const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);if(!terms.length)return [];const found=[];for(const f of graph.files){const content=(await readContextFile(graph,f.path)).toLowerCase(),name=f.path.toLowerCase(),score=terms.reduce((n,t)=>n+(name.includes(t)?5:0)+(content.includes(t)?1:0),0);if(score)found.push({path:f.path,score});}return found.sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,limit);}
+export async function context(graph,query,{limit=5,maxTokens=4000}={}){let used=0,baseline=0;const selected=[];for(const f of graph.files)baseline+=estimateTokens(await readContextFile(graph,f.path));for(const f of await searchFiles(graph,query,{limit:graph.files.length})){if(selected.length>=limit)break;const content=await readContextFile(graph,f.path),cost=estimateTokens(content);if(used+cost>maxTokens)continue;selected.push({path:f.path,content,estimatedTokens:cost});used+=cost;}return {query,selected,estimatedContextTokens:used,estimatedBaselineTokens:baseline,estimatedTokensSaved:Math.max(0,baseline-used),estimatedSavingsPercent:baseline?Math.round(100*(baseline-used)/baseline):0,method:'characters/4 heuristic; not billed tokens'};}
+export async function save(graph,root=graph.root){const dir=path.join(root,'.repo-graph');await mkdir(dir,{recursive:true});const target=path.join(dir,'graph.json');await writeFile(target,JSON.stringify({...graph,files:graph.files.map(({content,...f})=>f)},null,2));return target;}
+export async function load(root){const graph=JSON.parse(await readFile(path.join(path.resolve(root),'.repo-graph','graph.json'),'utf8'));if(graph.schemaVersion!==2)throw Error('Re-index: incompatible graph schema');return graph;}
+export async function semanticSearch(graph,query,{embed,limit=5}={}){if(typeof embed!=='function')throw Error('Provide embed(text) adapter');const q=await embed(query);if(!Array.isArray(q)||!q.length)throw Error('Invalid embedding');const norm=v=>Math.sqrt(v.reduce((n,x)=>n+x*x,0)),qn=norm(q),results=[];for(const f of graph.files){const v=await embed(await readContextFile(graph,f.path));if(!Array.isArray(v)||v.length!==q.length)throw Error('Embedding dimension mismatch');const vn=norm(v);results.push({path:f.path,score:qn&&vn?v.reduce((n,x,i)=>n+x*q[i],0)/(qn*vn):0});}return results.sort((a,b)=>b.score-a.score).slice(0,limit);}
+export async function routeTask(input,{decide,models={},agents={},fallback='default'}={}){if(typeof decide!=='function')throw Error('Provide decide(input) adapter');const decision=await decide(input),kind=decision?.kind==='agent'?'agent':'model',name=decision?.name||fallback,registry=kind==='agent'?agents:models;if(!Object.hasOwn(registry,name))throw Error('Unregistered '+kind+': '+name);return {kind,name,decision,execute:(...args)=>registry[name](input,...args)};}

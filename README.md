@@ -1,59 +1,63 @@
 # repo-knowledge-graph
 
-Terminal-first, dependency-free Node.js toolkit to index a repository into a simple knowledge graph, search files, select relevant source context, and estimate tokens avoided.
-
-**Status: early alpha, reconstructed Phase 1 foundation.** The original October 21 archive was not accessible; this is a new implementation based on the agreed scope.
+Open-source terminal-first repository knowledge graph and context selection library. **v0.2 alpha**.
 
 ## Install
 
-Requires Node.js 20+. Clone and run `npm link` to use the CLI locally. **Not yet published to npm.**
+Requires Node.js 20+. Until npm publication:
+
+```sh
+npm install --save-dev github:naubadnithin7/repo-knowledge-graph
+```
 
 ## CLI
 
-Run in the target repository:
+Run in your project's root:
 
 ```sh
-repo-graph index
-repo-graph stats
-repo-graph search "authentication"
-repo-graph context "authentication"
-repo-graph savings "authentication"
+npx repo-graph index
+npx repo-graph stats
+npx repo-graph search "authentication"
+npx repo-graph context "authentication"
+npx repo-graph savings "authentication"
 ```
 
-Index data is saved to `.repo-graph/graph.json`. This file contains indexed **full source code** and must not be shared without review.
+Add `.repo-graph/` to your project's `.gitignore`. Graph metadata does not persist source contents. Context commands still read local source and may output sensitive content.
 
 ## API
 
 ```js
-import {scan,search,context,save} from 'repo-knowledge-graph';
+import {scan,save,searchFiles,context,semanticSearch,routeTask} from 'repo-knowledge-graph';
 const graph=await scan(process.cwd());
 await save(graph);
-console.log(search(graph,'payment'));
-console.log(context(graph,'payment',{maxTokens:2000}));
+console.log(await searchFiles(graph,'payment'));
+console.log(await context(graph,'payment',{maxTokens:2000}));
+const matches=await semanticSearch(graph,'payments',{embed:async text=>yourEmbeddingFunction(text)});
+const route=await routeTask('summarize PR',{decide:async()=>({kind:'model',name:'small'}),models:{small:async task=>task}});
+console.log(await route.execute());
 ```
 
-## Scope and limitations
+## Implemented
 
-- Regex-based symbol and import extraction, not a complete AST or resolved dependency graph.
-- Lexical search only; no embeddings, Graphify integration, semantic search, or Laya/JEV model routing yet.
-- Estimated tokens use characters / 4; savings are *not* measured billed tokens or validated relevance gains.
-- No .gitignore parsing, incremental updates, secret detection, or scalable graph database.
-- No SPA yet. CLI and exported functions are intended as a foundation for a future local API.
+- Local file and regex-derived symbol graph; basic relative-import resolution.
+- Common `.gitignore` patterns (not full Git semantics).
+- Hash-based unchanged-file reporting (files are still read and parsed).
+- Lexical retrieval; optional cosine semantic retrieval through a caller-supplied embedding adapter.
+- Pluggable async model/agent decision routing through a caller-supplied adapter; **Laya not bundled**.
+- Approximate token savings (characters / 4) versus all indexed files; **not measured billing savings**.
 
-## Roadmap
+## Limitations / roadmap
 
-1. AST parsing and resolved file/symbol dependency edges.
-2. Incremental indexing, ignore rules, secret-safe graph persistence.
-3. Optional semantic retrieval and Graphify adapter.
-4. Reproducible retrieval-quality and actual-token benchmarks.
-5. Phase 2: Laya decision-model adapter and model/agent routing.
-6. Optional SPA.
+Regex parsing is not AST-complete; no Graphify adapter, native Laya integration, true incremental parsing, full ignore-rule support, secrets scanning, production benchmarks, SPA, or npm publication yet. Graph metadata includes filenames and hashes; source is read in memory, and context/embedding adapters may disclose it. Review before use with private code.
+
+Next: AST parsing, stronger ignore rules and secrets controls, measured token benchmarks and retrieval-quality evaluation, Graphify adapter, native Laya routing integration, npm publication.
 
 ## Development
 
 ```sh
 npm test
 npm run check
+npm pack --dry-run
 ```
 
-MIT licensed. Contributions welcome.
+MIT licensed; contributions welcome.
