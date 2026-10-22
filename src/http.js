@@ -33,7 +33,7 @@ export async function startHttpMcp(root=process.cwd(),{host='127.0.0.1',port=333
    else if(msg.method==='tools/list')value={tools};
    else if(msg.method==='tools/call')value=await callTool(root,msg.params?.name,msg.params?.arguments??{});
    else {json(res,200,error(msg.id,-32601,'Method not found'));return;}
-   json(res,200,{jsonrpc:'2.0',id:msg.id,result:value},{'Mcp-Session-Id':'', 'Vary':'Origin'});
+   json(res,200,{jsonrpc:'2.0',id:msg.id,result:value},{'Vary':'Origin'});
   }catch(e){if(!res.headersSent)json(res,200,error(null,-32603,e.message));}
  });
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.off('error',reject);resolve();});});
