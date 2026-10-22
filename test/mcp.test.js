@@ -24,7 +24,7 @@ test('stdio MCP initialize and tool listing',async()=>{
  const server=startMcp(process.cwd(),{input,output});
  input.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2024-11-05'}})+'\n');
  input.write(JSON.stringify({jsonrpc:'2.0',id:2,method:'tools/list'})+'\n');
- await new Promise(resolve=>setTimeout(resolve,30));server.close();
+ await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('MCP response timeout')),1500);const check=()=>{if(received.trim().split('\n').length>=2){clearTimeout(timeout);output.off('data',check);resolve();}};output.on('data',check);check();});server.close();
  const lines=received.trim().split('\n').map(JSON.parse);assert.equal(lines.length,2);
  assert.equal(lines[0].result.serverInfo.name,'repo-knowledge-graph');
  assert.equal(lines[1].result.tools.length,4);
