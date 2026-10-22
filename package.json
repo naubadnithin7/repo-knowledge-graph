@@ -1,0 +1,26 @@
+{
+  "name": "repo-knowledge-graph",
+  "version": "0.1.0",
+  "description": "Local repository graph and context selection CLI",
+  "type": "module",
+  "bin": {
+    "repo-graph": "./bin/repo-graph.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/index.js && node --check bin/repo-graph.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT"
+}
