@@ -30,7 +30,36 @@ export async function scan(root,{maxBytes=256000,previous=null,parser='regex'}={
 }
 export async function readContextFile(graph,rel){const root=path.resolve(graph.root),file=path.resolve(root,rel);if(!file.startsWith(root+path.sep)||!graph.files.some(f=>f.path===rel))throw Error('Unsafe or unindexed file');const info=await lstat(file);if(!info.isFile()||info.isSymbolicLink())throw Error('Unsafe file type');const actual=await realpath(file),realRoot=await realpath(root);if(!actual.startsWith(realRoot+path.sep))throw Error('File escaped repository');const content=await readFile(actual,'utf8');if(secretPattern.test(content))throw Error('Potential secret detected');return content;}
 export async function searchFiles(graph,query,{limit=10}={}){const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);if(!terms.length)return [];const found=[];for(const f of graph.files){const body=(await readContextFile(graph,f.path)).toLowerCase(),name=f.path.toLowerCase(),symbols=(f.symbols||[]).map(s=>s.name.toLowerCase()),score=terms.reduce((n,t)=>n+(name.includes(t)?5:0)+(symbols.some(s=>s.includes(t))?8:0)+(body.includes(t)?1:0),0);if(score)found.push({path:f.path,score});}return found.sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,limit);}
-export async function context(graph,query,{limit=5,maxTokens=4000}={}){let used=0,baseline=0;const selected=[];for(const f of graph.files)baseline+=estimateTokens(await readContextFile(graph,f.path));for(const f of await searchFiles(graph,query,{limit:graph.files.length})){if(selected.length>=limit)break;const content=await readContextFile(graph,f.path),cost=estimateTokens(content);if(used+cost>maxTokens)continue;selected.push({path:f.path,content,estimatedTokens:cost});used+=cost;}return {query,selected,estimatedContextTokens:used,estimatedBaselineTokens:baseline,estimatedTokensSaved:Math.max(0,baseline-used),estimatedSavingsPercent:baseline?Math.round(100*(baseline-used)/baseline):0,method:'characters/4 heuristic'};}
+export async function context(graph,query,{limit=5,maxTokens=4000}={}){
+ let used=0;const selected=[];
+ const baseline=graph.files.reduce((sum,f)=>sum+estimateTokens(' '.repeat(Math.min(f.bytes,256000))),0);
+ const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);
+ for(const f of await searchFiles(graph,query,{limit:graph.files.length})){
+  if(selected.length>=limit||used>=maxTokens)break;
+  const lines=(await readContextFile(graph,f.path)).split(/\r?\n/);
+  const hits=[];for(let i=0;i<lines.length;i++)if(terms.some(t=>lines[i].toLowerCase().includes(t)))hits.push(i);
+  if(!hits.length)hits.push(0);
+  const windows=[];
+  for(const i of hits.slice(0,12)){
+   const a=Math.max(0,i-2),b=Math.min(lines.length,i+3);
+   if(windows.length&&a<=windows[windows.length-1][1])windows[windows.length-1][1]=Math.max(b,windows[windows.length-1][1]);
+   else windows.push([a,b]);
+  }
+  const snippets=[];
+  for(const [a,b] of windows){
+   let content=lines.slice(a,b).map((line,j)=>(a+j+1)+': '+line).join('\n');
+   const available=maxTokens-used;
+   if(available<=0)break;
+   if(estimateTokens(content)>available)content=content.slice(0,available*4);
+   if(!content)continue;
+   const cost=estimateTokens(content);
+   snippets.push({startLine:a+1,endLine:b,content,estimatedTokens:cost});
+   used+=cost;
+  }
+  if(snippets.length)selected.push({path:f.path,snippets,content:snippets.map(s=>s.content).join('\n'),estimatedTokens:snippets.reduce((n,s)=>n+s.estimatedTokens,0)});
+ }
+ return {query,selected,estimatedContextTokens:used,estimatedBaselineTokens:baseline,estimatedTokensSaved:Math.max(0,baseline-used),estimatedSavingsPercent:baseline?Math.round(100*(baseline-used)/baseline):0,method:'characters/4 estimate; full repository theoretical baseline, not actual LLM savings'};
+}
 export async function save(graph,root=graph.root){const dir=path.join(root,'.repo-graph');await mkdir(dir,{recursive:true});const target=path.join(dir,'graph.json');await writeFile(target,JSON.stringify(graph,null,2));return target;}
 export async function load(root){const g=JSON.parse(await readFile(path.join(path.resolve(root),'.repo-graph','graph.json'),'utf8'));if(g.schemaVersion!==4)throw Error('Re-index required');return g;}
 export async function semanticSearch(graph,query,{embed,limit=5}={}){if(typeof embed!=='function')throw Error('Provide embed(text)');const q=await embed(query),norm=v=>Math.sqrt(v.reduce((n,x)=>n+x*x,0)),qn=norm(q),rows=[];for(const f of graph.files){const v=await embed(await readContextFile(graph,f.path));if(v.length!==q.length)throw Error('Embedding dimension mismatch');const vn=norm(v);rows.push({path:f.path,score:qn&&vn?v.reduce((n,x,i)=>n+x*q[i],0)/(qn*vn):0});}return rows.sort((a,b)=>b.score-a.score).slice(0,limit);}
