@@ -103,6 +103,32 @@ npm exec --yes --package=repo-knowledge-graph@alpha -- repo-graph index
 
 The **npm package name** is `repo-knowledge-graph`; the **CLI executable** is `repo-graph`. `alpha` is a release tag, not part of the package name.
 
+## Local MCP integration (v0.6.0 alpha source)
+
+After indexing the project, launch the stdio MCP server:
+
+```bash
+npx repo-graph index
+npx repo-graph serve --mcp
+```
+
+Register the command with an MCP-compatible coding assistant, setting its working directory to the repository root. The server uses newline-delimited JSON-RPC over stdio; it does **not** print a startup banner to stdout. Tools: `repo_search`, `repo_context` (with `maxTokens`), `repo_stats`, and `repo_refresh`. The first three tools read the graph; refresh explicitly updates `.repo-graph/graph.json`.
+
+Example generic MCP client configuration (adapt to your assistant's configuration format):
+
+```json
+{
+  "mcpServers": {
+    "repo-knowledge-graph": {
+      "command": "npx",
+      "args": ["repo-graph", "serve", "--mcp"]
+    }
+  }
+}
+```
+
+**Note:** The assistant must actually invoke these tools for them to influence context usage. This is not an automatic prompt interceptor. The `savings` command compares against an all-files baseline and does **not** establish actual model-token savings.
+
 ## Advanced / experimental integrations
 
 - **Incremental indexing:** Reuses metadata for unchanged files on subsequent scans.
