@@ -9,7 +9,7 @@ const norm=p=>p.split(path.sep).join('/');
 const secretPattern=/(?:-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:ghp_|github_pat_|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}))/;
 export const estimateTokens=s=>Math.ceil(String(s).length/4);
 async function patterns(root){try{return (await readFile(path.join(root,'.gitignore'),'utf8')).split(/\r?\n/).map(p=>p.trim()).filter(p=>p&&!p.startsWith('#'));}catch{return [];}}
-function globRegex(glob){let out='';for(let i=0;i<glob.length;i++){const c=glob[i];if(c==='*'){if(glob[i+1]==='*'){i++;if(glob[i+1]==='/'){i++;out+='(?:.*/)?';}else out+='.*';}else out+='[^/]*';}else if(c==='?')out+='[^/]';else out+='\\'+c;}return out;}
+function globRegex(glob){let out='';for(let i=0;i<glob.length;i++){const c=glob[i];if(c==='*'){if(glob[i+1]==='*'){i++;if(glob[i+1]==='/'){i++;out+='(?:.*/)?';}else out+='.*';}else out+='[^/]*';}else if(c==='?')out+='[^/]';else out+=('.+^$()[]{}|\\'.includes(c)?'\\':'')+c;}return out;}
 function ignored(rel,ps){let matched=false;for(let p of ps){const negate=p.startsWith('!');if(negate)p=p.slice(1);const anchored=p.startsWith('/');if(anchored)p=p.slice(1);const directory=p.endsWith('/');if(directory)p=p.slice(0,-1);const pattern=globRegex(p);const prefix=anchored||p.includes('/')?'^':'^(?:.*/)?';const regex=new RegExp(prefix+pattern+'(?:/.*)?
 function resolve(spec,rel,known){if(!spec.startsWith('.'))return 'module:'+spec;const base=norm(path.posix.normalize(path.posix.join(path.posix.dirname(rel),spec)));return 'file:'+([base,base+'.js',base+'.ts',base+'.tsx',base+'.jsx',base+'/index.js',base+'/index.ts'].find(p=>known.has(p))||'__missing__')==='file:__missing__'?'module:'+spec:'file:'+([base,base+'.js',base+'.ts',base+'.tsx',base+'.jsx',base+'/index.js',base+'/index.ts'].find(p=>known.has(p)));}
 export async function scan(root,{maxBytes=256000,previous=null,parser='regex'}={}){
@@ -32,7 +32,7 @@ export async function readContextFile(graph,rel){const root=path.resolve(graph.r
 export async function searchFiles(graph,query,{limit=10}={}){const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);if(!terms.length)return [];const found=[];for(const f of graph.files){const body=(await readContextFile(graph,f.path)).toLowerCase(),name=f.path.toLowerCase(),symbols=(f.symbols||[]).map(s=>s.name.toLowerCase()),score=terms.reduce((n,t)=>n+(name.includes(t)?5:0)+(symbols.some(s=>s.includes(t))?8:0)+(body.includes(t)?1:0),0);if(score)found.push({path:f.path,score});}return found.sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,limit);}
 export async function context(graph,query,{limit=5,maxTokens=4000}={}){
  let used=0;const selected=[];
- const baseline=graph.files.reduce((sum,f)=>sum+estimateTokens(' '.repeat(Math.min(f.bytes,256000))),0);
+ const baseline=graph.files.reduce((sum,f)=>sum+Math.ceil(f.bytes/4),0);
  const terms=String(query).toLowerCase().split(/\s+/).filter(Boolean);
  for(const f of await searchFiles(graph,query,{limit:graph.files.length})){
   if(selected.length>=limit||used>=maxTokens)break;
