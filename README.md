@@ -22,7 +22,7 @@ npx repo-graph --help
 npx repo-graph index
 ```
 
-The CLI stores its generated graph in `.repo-graph/graph.json` in the current working directory. To try unreleased v0.6.0 source before npm publication, clone this repository and run `npm link` locally.
+The CLI stores its generated graph in `.repo-graph/graph.json` in the current working directory. To test unreleased source before npm publication, clone this repository and run `npm link` locally.
 
 ## CLI showcase
 
@@ -103,7 +103,7 @@ npm exec --yes --package=repo-knowledge-graph@alpha -- repo-graph index
 
 The **npm package name** is `repo-knowledge-graph`; the **CLI executable** is `repo-graph`. `alpha` is a release tag, not part of the package name.
 
-## Local MCP integration (v0.6.0 alpha source)
+## Local MCP integration (stdio)
 
 After indexing the project, launch the stdio MCP server:
 
@@ -121,7 +121,7 @@ Example generic MCP client configuration (adapt to your assistant's configuratio
   "mcpServers": {
     "repo-knowledge-graph": {
       "command": "npx",
-      "args": ["repo-graph", "serve", "--mcp"]
+      "args": ["-y", "repo-knowledge-graph@alpha", "serve", "--mcp"]
     }
   }
 }
@@ -130,6 +130,27 @@ Example generic MCP client configuration (adapt to your assistant's configuratio
 `repo_context` returns line-numbered snippets with a configurable approximate token budget. Snippet extraction is keyword-oriented and may omit relevant code. The server uses the working directory as the repository root; configure your MCP client accordingly.
 
 **Note:** The assistant must actually invoke these tools for them to influence context usage. This is not an automatic prompt interceptor. The `savings` command compares against an all-files baseline and does **not** establish actual model-token savings.
+
+## HTTP MCP integration (v0.7.0 source; not yet on npm)
+
+The optional stateless HTTP MCP transport serves the same tools at `/mcp`. Use Node.js 20+ and run from the repository you want to index.
+
+```bash
+# In a checkout of this source version (or after v0.7.0 is published):
+REPO_GRAPH_MCP_TOKEN="$(openssl rand -hex 32)" HOST=127.0.0.1 PORT=3333 node bin/repo-graph.js serve --http
+```
+
+Use the generated token as `Authorization: Bearer <token>` for HTTP clients. Set a stable token in your environment and keep it private. The server defaults to loopback only. A non-loopback HOST requires `REPO_GRAPH_MCP_TOKEN`, and **must be deployed behind HTTPS** and proper network controls; bearer authentication is not encrypted over plain HTTP. This endpoint is a stateless JSON-response MCP transport (no SSE streaming or persistent sessions). Client compatibility, including ChatGPT custom connectors, has not yet been validated end-to-end. ChatGPT cannot access `127.0.0.1` on your computer; use an authenticated HTTPS deployment or an HTTPS tunnel configured with appropriate access controls. Do not expose private repository contents publicly.
+
+Example local protocol probe:
+
+```bash
+curl -sS http://127.0.0.1:3333/mcp \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json, text/event-stream" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## Retrieval benchmark
 
