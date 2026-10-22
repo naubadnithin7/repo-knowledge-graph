@@ -1,0 +1,35 @@
+name: Publish npm alpha
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Expected package version (must match package.json)'
+        required: true
+        default: '0.5.0'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Check release version
+        shell: bash
+        run: |
+          test "$(node -p 'require("./package.json").version')" = "${{ inputs.version }}"
+      - name: Test
+        run: npm test
+      - name: Syntax
+        run: npm run check
+      - name: Verify package
+        run: npm pack --dry-run
+      - name: Publish prerelease
+        run: npm publish --access public --tag alpha --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
