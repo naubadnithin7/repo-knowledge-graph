@@ -129,6 +129,24 @@ Example generic MCP client configuration (adapt to your assistant's configuratio
 
 **Note:** The assistant must actually invoke these tools for them to influence context usage. This is not an automatic prompt interceptor. The `savings` command compares against an all-files baseline and does **not** establish actual model-token savings.
 
+## Retrieval benchmark
+
+Create a `repo-graph-benchmark.json` file containing labeled questions and relevant file paths:
+
+```json
+[
+  {"query": "Where is authentication implemented?", "relevantPaths": ["src/auth.js"]}
+]
+```
+
+Replace `src/auth.js` with an actual indexed path. Then run:
+
+```bash
+npx repo-graph benchmark repo-graph-benchmark.json
+```
+
+This measures retrieval precision, recall, selected-context token estimates and latency. The benchmark requires ground-truth file labels; it does **not** measure live model billing or guarantee reduced tokens in an assistant.
+
 ## Advanced / experimental integrations
 
 - **Incremental indexing:** Reuses metadata for unchanged files on subsequent scans.
