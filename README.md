@@ -22,7 +22,7 @@ npx repo-graph --help
 npx repo-graph index
 ```
 
-The CLI stores its generated graph in `.repo-graph/graph.json` in the current working directory.
+The CLI stores its generated graph in `.repo-graph/graph.json` in the current working directory. To try unreleased v0.6.0 source before npm publication, clone this repository and run `npm link` locally.
 
 ## CLI showcase
 
@@ -112,7 +112,7 @@ npx repo-graph index
 npx repo-graph serve --mcp
 ```
 
-Register the command with an MCP-compatible coding assistant, setting its working directory to the repository root. The server uses newline-delimited JSON-RPC over stdio; it does **not** print a startup banner to stdout. Tools: `repo_search`, `repo_context` (with `maxTokens`), `repo_stats`, and `repo_refresh`. The first three tools read the graph; refresh explicitly updates `.repo-graph/graph.json`.
+Register the command with an MCP-compatible coding assistant, setting its working directory to the repository root. The server uses newline-delimited JSON-RPC over stdio; it does **not** print a startup banner to stdout. Tools: `repo_search`, `repo_context` (with `maxTokens`), `repo_stats`, and `repo_refresh`. The server automatically checks for repository changes before each tool call and refreshes the saved graph when files change. `repo_refresh` also forces a refresh. Automatic freshness currently re-reads and hashes eligible files, so very large repositories may see added latency.
 
 Example generic MCP client configuration (adapt to your assistant's configuration format):
 
@@ -126,6 +126,8 @@ Example generic MCP client configuration (adapt to your assistant's configuratio
   }
 }
 ```
+
+`repo_context` returns line-numbered snippets with a configurable approximate token budget. Snippet extraction is keyword-oriented and may omit relevant code. The server uses the working directory as the repository root; configure your MCP client accordingly.
 
 **Note:** The assistant must actually invoke these tools for them to influence context usage. This is not an automatic prompt interceptor. The `savings` command compares against an all-files baseline and does **not** establish actual model-token savings.
 
@@ -161,6 +163,8 @@ Review [SECURITY.md](SECURITY.md) before scanning sensitive repositories. Keep `
 ```gitignore
 .repo-graph/
 ```
+
+The scanner supports common `.gitignore` glob patterns and negations, but it is not a complete implementation of Git's nested ignore semantics. Source files are never executed by the scanner. Generated context includes source snippets and may expose sensitive code to the connected AI assistant; review its privacy policy before use.
 
 The CLI runs locally, but graph outputs may reflect private code structure. The current release is an alpha and should be evaluated on representative repositories before production adoption.
 
