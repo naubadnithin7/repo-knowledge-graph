@@ -1,0 +1,37 @@
+{
+  "name": "repo-knowledge-graph",
+  "version": "0.5.0",
+  "type": "module",
+  "description": "Repository knowledge graph and CLI",
+  "bin": {
+    "repo-graph": "./bin/repo-graph.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./adapters": "./src/adapters.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/index.js && node --check src/adapters.js && node --check bin/repo-graph.js",
+    "prepublishOnly": "npm test && npm run check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}
