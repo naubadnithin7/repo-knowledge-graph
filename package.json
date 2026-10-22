@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Repository knowledge graph and CLI",
   "bin": {
-    "repo-graph": "./bin/repo-graph.js"
+    "repo-graph": "bin/repo-graph.js"
   },
   "exports": {
     ".": "./src/index.js",
@@ -33,5 +33,9 @@
     "typescript": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naubadnithin7/repo-knowledge-graph.git"
   }
 }
