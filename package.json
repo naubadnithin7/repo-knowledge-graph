@@ -1,6 +1,6 @@
 {
   "name": "repo-knowledge-graph",
-  "version": "0.7.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Repository knowledge graph and CLI",
   "bin": {
@@ -10,12 +10,11 @@
     ".": "./src/index.js",
     "./adapters": "./src/adapters.js",
     "./mcp": "./src/mcp.js",
-    "./benchmark": "./src/benchmark.js",
-    "./http": "./src/http.js"
+    "./benchmark": "./src/benchmark.js"
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/index.js && node --check src/adapters.js && node --check bin/repo-graph.js && node --check src/mcp.js && node --check src/http.js",
+    "check": "node --check src/index.js && node --check src/adapters.js && node --check bin/repo-graph.js && node --check src/mcp.js",
     "prepublishOnly": "npm test && npm run check"
   },
   "engines": {
