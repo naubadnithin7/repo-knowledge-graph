@@ -28,7 +28,7 @@ export function startMcp(root=process.cwd(),{input=stdin,output=stdout}={}){
   if(msg.id===undefined)return;
   try{
    let value;
-   if(msg.method==='initialize')value={protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'repo-knowledge-graph',version:'0.7.0'}};
+   if(msg.method==='initialize')value={protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'repo-knowledge-graph',version:'0.6.0'}};
    else if(msg.method==='ping')value={};
    else if(msg.method==='tools/list')value={tools:definitions};
    else if(msg.method==='tools/call')value=await callTool(root,msg.params?.name,msg.params?.arguments??{});
