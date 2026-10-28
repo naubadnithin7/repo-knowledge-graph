@@ -29,7 +29,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^4.8.4 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "typescript": {
