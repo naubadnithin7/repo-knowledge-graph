@@ -1,11 +1,13 @@
-name: Publish npm alpha
+name: Publish npm
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
-        description: 'Expected package version (must match package.json)'
-        required: true
-        default: '0.5.0'
+        description: 'Optional expected package version (must match package.json)'
+        required: false
 permissions:
   contents: read
   id-token: write
@@ -19,17 +21,35 @@ jobs:
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-      - name: Check release version
+      - name: Check requested release version
+        if: inputs.version != ''
         shell: bash
         run: |
           test "$(node -p 'require("./package.json").version')" = "${{ inputs.version }}"
+      - name: Read package version
+        id: package
+        shell: bash
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
       - name: Test
         run: npm test
       - name: Syntax
         run: npm run check
       - name: Verify package
         run: npm pack --dry-run
-      - name: Publish prerelease
-        run: npm publish --access public --tag alpha --provenance
+      - name: Check whether this version is already published
+        id: npm
+        shell: bash
+        run: |
+          if npm view "repo-knowledge-graph@${{ steps.package.outputs.version }}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish package
+        if: steps.npm.outputs.published == 'false'
+        run: npm publish --access public --tag latest --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Report already-published version
+        if: steps.npm.outputs.published == 'true'
+        run: echo "Version ${{ steps.package.outputs.version }} is already published; skipping npm publish."
